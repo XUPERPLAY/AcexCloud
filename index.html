@@ -127,6 +127,21 @@
             margin: 20px auto;
             max-height: 500px;
             overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        #channel-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #channel-list::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+
+        #channel-list::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #00f2ff, #0066ff);
+            border-radius: 4px;
         }
 
         .channel-card {
@@ -164,12 +179,48 @@
             font-size: 13px;
             font-weight: 500;
             margin-bottom: 5px;
+            word-break: break-word;
         }
 
         .channel-group {
             font-size: 10px;
             color: #00f2ff;
             text-transform: uppercase;
+        }
+
+        .channel-id {
+            font-size: 9px;
+            color: #666;
+            margin-top: 5px;
+            font-family: monospace;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+            grid-column: 1 / -1;
+        }
+
+        .error-state {
+            text-align: center;
+            padding: 40px;
+            color: #ff4444;
+            grid-column: 1 / -1;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #00f2ff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
 
         .progress-bar {
@@ -186,16 +237,6 @@
             background: linear-gradient(90deg, #00f2ff, #0066ff);
             width: 0%;
             transition: width 0.3s;
-        }
-
-        .warning {
-            background: rgba(255, 193, 7, 0.1);
-            border: 1px solid rgba(255, 193, 7, 0.5);
-            color: #ffc107;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 12px;
         }
     </style>
 </head>
@@ -232,8 +273,9 @@
 </div>
 
 <div id="channel-list">
-    <div style="text-align: center; padding: 40px; color: #888; grid-column: 1/-1;">
-        Clic en "Cargar Lista" para ver los canales
+    <div class="empty-state">
+        <div class="loading-spinner"></div>
+        <p style="margin-top: 15px;">Cargando canales...</p>
     </div>
 </div>
 
@@ -283,6 +325,12 @@
     function acestreamToMagnet(hash) {
         hash = hash.trim().replace('acestream://', '').toLowerCase();
         
+        // Validar hash
+        if (!/^[a-f0-9]{40}$/i.test(hash)) {
+            console.error('Hash inválido:', hash);
+            return null;
+        }
+        
         const trackers = [
             'udp://tracker.openbittorrent.com:80',
             'udp://tracker.opentrackr.org:1337',
@@ -292,7 +340,8 @@
             'udp://tracker.pirateparty.gr:6969',
             'udp://tracker.internetwarriors.net:1337',
             'wss://tracker.openwebtorrent.com',
-            'wss://tracker.btorrent.xyz'
+            'wss://tracker.btorrent.xyz',
+            'wss://tracker.fastcast.nz'
         ];
         
         let magnet = `magnet:?xt=urn:btih:${hash}`;
@@ -305,58 +354,121 @@
 
     // Cargar lista M3U
     async function loadM3U() {
-        updateStatus('Cargando lista de canales...');
+        const container = document.getElementById('channel-list');
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="loading-spinner"></div>
+                <p style="margin-top: 15px;">Cargando canales...</p>
+            </div>
+        `;
         
         try {
+            console.log('Cargando lista M3U...');
             const response = await fetch('/api/m3u');
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP ${response.status}`);
+            }
+            
             const data = await response.text();
+            console.log('Lista cargada, tamaño:', data.length);
+            
+            if (!data || data.trim().length === 0) {
+                throw new Error('Lista vacía');
+            }
+            
             parseM3U(data);
-            updateStatus('Lista cargada. Selecciona un canal.');
+            
         } catch (error) {
-            console.error('Error:', error);
-            document.getElementById('channel-list').innerHTML = `
-                <div style="text-align: center; padding: 40px; color: #ff4444; grid-column: 1/-1;">
-                    Error al cargar la lista. <button onclick="loadM3U()" class="btn" style="margin-left: 10px;">Reintentar</button>
+            console.error('Error cargando M3U:', error);
+            container.innerHTML = `
+                <div class="error-state">
+                    <p>❌ Error al cargar canales</p>
+                    <p style="font-size: 12px; margin-top: 10px;">${error.message}</p>
+                    <button onclick="loadM3U()" class="btn" style="margin-top: 15px;">Reintentar</button>
                 </div>
             `;
+            updateStatus('Error cargando lista: ' + error.message);
         }
     }
 
     function parseM3U(content) {
         channels = [];
         const lines = content.split('\n');
+        let currentGroup = 'General';
+        
+        console.log('Parseando M3U, líneas:', lines.length);
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
             
             if (line.startsWith('#EXTINF')) {
+                // Extraer nombre
                 const nameMatch = line.match(/,(.*)$/);
                 const name = nameMatch ? nameMatch[1].trim() : 'Sin nombre';
-                const logo = line.match(/tvg-logo="(.*?)"/)?.[1] || '';
-                const group = line.match(/group-title="(.*?)"/)?.[1] || 'General';
-                const streamUrl = lines[i+1]?.trim();
                 
+                // Extraer logo
+                const logoMatch = line.match(/tvg-logo="(.*?)"/);
+                const logo = logoMatch ? logoMatch[1] : '';
+                
+                // Extraer grupo
+                const groupMatch = line.match(/group-title="(.*?)"/);
+                const group = groupMatch ? groupMatch[1] : currentGroup;
+                
+                // Siguiente línea es la URL
+                const streamUrl = lines[i + 1] ? lines[i + 1].trim() : '';
+                
+                console.log('Procesando:', name, 'URL:', streamUrl ? 'Sí' : 'No');
+                
+                // Buscar acestream://
                 if (streamUrl && streamUrl.includes('acestream://')) {
                     const aceId = streamUrl.split('acestream://')[1].trim();
+                    
+                    // Validar que sea un hash válido (40 caracteres hex)
                     if (/^[a-f0-9]{40}$/i.test(aceId)) {
-                        channels.push({ name, logo, aceId, group, id: aceId.substring(0, 8) });
+                        channels.push({
+                            name: name,
+                            logo: logo,
+                            aceId: aceId,
+                            group: group,
+                            id: aceId.substring(0, 8)
+                        });
+                        console.log('✓ Canal AceStream encontrado:', name);
+                    } else {
+                        console.log('✗ Hash inválido:', aceId);
                     }
                 }
             }
         }
         
-        // Ordenar
-        channels.sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name));
+        console.log('Total canales AceStream:', channels.length);
         
-        displayChannels(channels);
-        updateStatus(`✅ ${channels.length} canales cargados. Haz clic en uno para reproducir.`);
+        // Ordenar por grupo y nombre
+        channels.sort((a, b) => {
+            if (a.group === b.group) return a.name.localeCompare(b.name);
+            return a.group.localeCompare(b.group);
+        });
+        
+        if (channels.length === 0) {
+            document.getElementById('channel-list').innerHTML = `
+                <div class="error-state">
+                    <p>No se encontraron canales AceStream</p>
+                    <p style="font-size: 12px; margin-top: 10px;">La lista M3U no contiene streams acestream://</p>
+                </div>
+            `;
+            updateStatus('No se encontraron canales AceStream en la lista');
+        } else {
+            displayChannels(channels);
+            updateStatus(`✅ ${channels.length} canales cargados. Haz clic en uno para reproducir.`);
+        }
     }
 
     function displayChannels(list) {
         const container = document.getElementById('channel-list');
         
         if (list.length === 0) {
-            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #888; grid-column: 1/-1;">No se encontraron canales AceStream</div>';
+            container.innerHTML = '<div class="empty-state">No se encontraron canales</div>';
             return;
         }
         
@@ -365,7 +477,7 @@
                 <img src="${c.logo}" class="channel-logo" onerror="this.src='https://via.placeholder.com/60?text=TV'" alt="${escapeHtml(c.name)}">
                 <div class="channel-group">${escapeHtml(c.group)}</div>
                 <div class="channel-name">${escapeHtml(c.name)}</div>
-                <div style="font-size: 10px; color: #666; margin-top: 5px;">${c.id}</div>
+                <div class="channel-id">${c.id}</div>
             </div>
         `).join('');
     }
@@ -380,18 +492,24 @@
             currentTorrent.destroy();
         }
 
+        const magnetUri = acestreamToMagnet(hash);
+        
+        if (!magnetUri) {
+            updateStatus('❌ Hash inválido');
+            return;
+        }
+        
+        console.log('Reproduciendo magnet:', magnetUri);
+
         updateStatus(`⏳ Conectando a "${name}"... Espera mientras encuentra peers...`);
         updatePeers(0);
         updateProgress(0);
-
-        const magnetUri = acestreamToMagnet(hash);
-        console.log('Reproduciendo:', magnetUri);
 
         try {
             client.add(magnetUri, (torrent) => {
                 currentTorrent = torrent;
                 
-                console.log('Torrent añadido:', torrent.name || hash);
+                console.log('Torrent añadido:', torrent.infoHash);
                 
                 // Eventos del torrent
                 torrent.on('wire', () => {
@@ -401,14 +519,18 @@
                 torrent.on('download', (bytes) => {
                     const percent = Math.round(torrent.progress * 100);
                     updateProgress(percent);
-                    updateStatus(`📥 Descargando... ${(torrent.downloaded / 1024 / 1024).toFixed(2)} MB`);
-                    updatePeers(torrent.numPeers);
+                    updateStatus(`📥 Descargando... ${(torrent.downloaded / 1024 / 1024).toFixed(2)} MB (${torrent.numPeers} peers)`);
+                });
+
+                // Cuando tengamos metadata
+                torrent.on('metadata', () => {
+                    console.log('Metadata recibida, archivos:', torrent.files.length);
                 });
 
                 // Buscar archivo de video
                 const videoFile = torrent.files.find(f => {
                     const ext = f.name.toLowerCase().split('.').pop();
-                    return ['mp4', 'mkv', 'avi', 'mov', 'webm', 'ts'].includes(ext);
+                    return ['mp4', 'mkv', 'avi', 'mov', 'webm', 'ts', 'm3u8'].includes(ext);
                 }) || torrent.files[0];
 
                 if (!videoFile) {
@@ -416,7 +538,9 @@
                     return;
                 }
 
-                // Renderizar en el DOM para reproducir
+                console.log('Archivo seleccionado:', videoFile.name);
+
+                // Crear stream y reproducir
                 videoFile.renderTo('video', {
                     autoplay: true,
                     controls: true
@@ -439,7 +563,7 @@
             });
         } catch (error) {
             console.error('Error:', error);
-            updateStatus('❌ Error al iniciar la reproducción');
+            updateStatus('❌ Error al iniciar: ' + error.message);
         }
     }
 
@@ -461,12 +585,14 @@
         
         const filtered = channels.filter(c => 
             c.name.toLowerCase().includes(query) || 
-            c.group.toLowerCase().includes(query)
+            c.group.toLowerCase().includes(query) ||
+            c.aceId.toLowerCase().includes(query)
         );
         displayChannels(filtered);
     }
 
     function escapeHtml(text) {
+        if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
@@ -474,7 +600,8 @@
 
     // Cargar automáticamente al iniciar
     window.addEventListener('load', () => {
-        setTimeout(loadM3U, 1000);
+        console.log('Página cargada, iniciando...');
+        setTimeout(loadM3U, 500);
     });
 </script>
 
