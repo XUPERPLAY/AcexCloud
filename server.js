@@ -5,12 +5,12 @@ const path = require('path');
 const app = express();
 app.use(cors());
 
-// IMPORTANTE: Servir archivos estáticos DESDE la carpeta public
-app.use(express.static('public'));
+// Sirve archivos estáticos desde la RAÍZ (donde está index.html)
+app.use(express.static(__dirname));
 
 // Ruta raíz explícita
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Health check
