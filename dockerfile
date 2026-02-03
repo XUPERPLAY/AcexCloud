@@ -1,30 +1,44 @@
 FROM debian:bullseye-slim
 
-# Instalar dependencias
+# Instalar dependencias básicas
 RUN apt-get update && apt-get install -y \
     wget \
     curl \
-    gnupg \
     ca-certificates \
-    libpython3.9 \
+    xz-utils \
+    libssl1.1 \
+    libffi7 \
     python3 \
-    net-tools \
-    procps \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Descargar AceStream desde mirror alternativo (más fiable)
+# Descargar AceStream desde fuente alternativa (mirror ruso confiable)
 RUN cd /tmp && \
-    wget --timeout=60 -O acestream.tar.gz \
-    "https://github.com/martinbjeldbak/acestream-http-proxy/releases/download/v1.0.0/acestream-engine-linux-x86_64.tar.gz" || \
-    wget --timeout=60 -O acestream.tar.gz \
-    "https://archive.org/download/acestream-engine-linux-x86_64/acestream-engine-linux-x86_64.tar.gz" && \
-    tar -xzf acestream.tar.gz && \
+    wget --timeout=120 --tries=3 \
+    "http://dl.acestream.org/linux/acestream_3.1.74_x86_64.tar.gz" && \
+    tar -xzf acestream_3.1.74_x86_64.tar.gz && \
     mv acestream_* /opt/acestream && \
     chmod +x /opt/acestream/acestreamengine && \
     ln -sf /opt/acestream/acestreamengine /usr/local/bin/acestreamengine && \
-    rm -f acestream.tar.gz
+    rm -f acestream_3.1.74_x86_64.tar.gz && \
+    ls -la /opt/acestream/
 
-# Instalar Node.js
+# Si falla el anterior, intentar con otro mirror
+RUN if [ ! -f /usr/local/bin/acestreamengine ]; then \
+        cd /tmp && \
+        wget --timeout=120 --tries=3 \
+        "https://archive.org/download/acestream-3.1.74-linux/acestream-3.1.74-linux.tar.gz" && \
+        tar -xzf acestream-3.1.74-linux.tar.gz && \
+        mv acestream_* /opt/acestream && \
+        chmod +x /opt/acestream/acestreamengine && \
+        ln -sf /opt/acestream/acestreamengine /usr/local/bin/acestreamengine && \
+        rm -f acestream-3.1.74-linux.tar.gz; \
+    fi
+
+# Verificar instalación
+RUN ls -la /usr/local/bin/acestreamengine || (echo "❌ AceStream no instalado" && exit 1)
+
+# Instalar Node.js 18
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
@@ -37,7 +51,6 @@ RUN npm install
 COPY . .
 RUN chmod +x start.sh
 
-# Puerto para la web y AceStream
 EXPOSE 8080 6878
 
 CMD ["./start.sh"]
