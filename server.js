@@ -18,7 +18,7 @@ app.get('/health', (req, res) => {
 app.get('/api/m3u', async (req, res) => {
     try {
         const fetch = (await import('node-fetch')).default;
-        const response = await fetch('https://ipfs.io/ipns/k2k4r8oqlcjxsritt5mczkcn4mmvcmymbqw7113fz2flkrerfwfps004/data/listas/lista_iptv.m3u');
+        const response = await fetch('https://ipfs.io/ipns/k51qzi5uqu5di462t7j4vu4akwfhvtjhy88qbupktvoacqfqe9uforjvhyi4wr/hashes_acestream.m3u');
         const text = await response.text();
         res.type('text/plain').send(text);
     } catch (e) {
