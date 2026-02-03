@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV Premium Cloud - AceStream</title>
+    <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            font-family: 'Roboto', sans-serif;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #00f2ff, #0066ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(0,102,255,0.5);
+            margin-bottom: 10px;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-online { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+        .status-offline { background: #ff4444; }
+        .status-loading { background: #ffaa00; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        #player-container { 
+            width: 100%; 
+            max-width: 1000px; 
+            margin: 0 auto 30px; 
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            border: 2px solid rgba(0,242,255,0.3);
+            position: relative;
+        }
+
+        .player-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.3s;
+        }
+
+        .player-overlay.hidden { opacity: 0; pointer-events: none; }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(0,242,255,0.3);
+            border-top-color: #00f2ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .controls-section {
+            max-width: 1000px;
+            margin: 0 auto 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        #search-bar { 
+            flex: 1;
+            min-width: 250px;
+            padding: 15px 25px; 
+            border-radius: 30px; 
+            border: 2px solid rgba(0,242,255,0.3); 
+            font-size: 16px; 
+            background: rgba(0,0,0,0.4);
+            color: white;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        #search-bar:focus {
+            border-color: #00f2ff;
+            box-shadow: 0 0 20px rgba(0,242,255,0.2);
+        }
+
+        #search-bar::placeholder { color: rgba(255,255,255,0.4); }
+
+        .filter-btn {
+            padding: 12px 24px;
+            background: linear-gradient(45deg, #0066ff, #00f2ff);
+            border: none;
+            border-radius: 25px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .filter-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,102,255,0.4);
+        }
+
+        #channel-list { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); 
+            gap: 20px; 
+            max-width: 1000px;
+            margin: 0 auto;
+            max-height: 600px; 
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        #channel-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #channel-list::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+
+        #channel-list::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #00f2ff, #0066ff);
+            border-radius: 4px;
+        }
+
+        .channel-card { 
+            background: rgba(255,255,255,0.05); 
+            padding: 20px; 
+            border-radius: 16px; 
+            cursor: pointer; 
+            text-align: center;
+            transition: all 0.3s;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .channel-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .channel-card:hover::before {
+            left: 100%;
+        }
+
+        .channel-card:hover { 
+            background: rgba(255,255,255,0.1); 
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-color: rgba(0,242,255,0.5);
+        }
+
+        .channel-card.active {
+            background: rgba(0,102,255,0.2);
+            border-color: #00f2ff;
+            box-shadow: 0 0 20px rgba(0,242,255,0.3);
+        }
+
+        .channel-logo { 
+            width: 80px; 
+            height: 80px;
+            object-fit: contain;
+            display: block; 
+            margin: 0 auto 15px;
+            border-radius: 12px;
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+        }
+
+        .channel-name {
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            min-height: 40px;
+        }
+
+        .channel-group {
+            font-size: 11px;
+            color: #00f2ff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .channel-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #888;
+            padding: 4px 12px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+        }
+
+        .status-dot-small {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: rgba(255,255,255,0.5);
+            grid-column: 1 / -1;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 16px 32px;
+            border-radius: 30px;
+            border: 1px solid rgba(0,242,255,0.5);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 { font-size: 1.8em; }
+            #channel-list { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+            .channel-logo { width: 60px; height: 60px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>⚡ TV PREMIUM CLOUD</h1>
+    <p>Transmisión AceStream sin instalación local</p>
+    <div class="status-bar">
+        <div class="status-item">
+            <div class="status-dot status-loading" id="proxy-status-dot"></div>
+            <span id="proxy-status-text">Conectando al proxy...</span>
+        </div>
+        <div class="status-item">
+            <span id="channel-count">0</span> canales disponibles
+        </div>
+    </div>
+</div>
+
+<div id="player-container">
+    <div id="dplayer"></div>
+    <div class="player-overlay" id="player-overlay">
+        <div class="loading-spinner"></div>
+        <p>Selecciona un canal para comenzar</p>
+        <p style="font-size: 12px; color: #888; margin-top: 10px;">Los streams se procesan en la nube</p>
+    </div>
+</div>
+
+<div class="controls-section">
+    <input type="text" id="search-bar" placeholder="🔍 Buscar canal (ej: DAZN, ESPN, HBO...)" onkeyup="filterChannels()">
+    <button class="filter-btn" onclick="loadM3U()">🔄 Recargar</button>
+</div>
+
+<div id="channel-list">
+    <div class="empty-state">
+        <div class="empty-state-icon">📡</div>
+        <p>Cargando canales...</p>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    // Detectar URL automáticamente (mismo dominio)
+    const PROXY_URL = window.location.origin;
+    
+    const M3U_URL = 'https://ipfs.io/ipns/k2k4r8oqlcjxsritt5mczkcn4mmvcmymbqw7113fz2flkrerfwfps004/data/listas/lista_iptv.m3u';
+    
+    let channels = [];
+    let currentHls = null;
+    let currentChannelId = null;
+
+    // Inicializar DPlayer
+    const dp = new DPlayer({
+        container: document.getElementById('dplayer'),
+        video: { 
+            url: '',
+            type: 'customHls',
+            customType: {
+                customHls: function(video, player) {
+                    if (currentHls) {
+                        currentHls.destroy();
+                    }
+                    
+                    currentHls = new Hls({
+                        maxBufferLength: 30,
+                        maxMaxBufferLength: 600,
+                        enableWorker: true,
+                        debug: false
+                    });
+                    
+                    currentHls.loadSource(video.src);
+                    currentHls.attachMedia(video);
+                    
+                    currentHls.on(Hls.Events.MANIFEST_PARSED, function() {
+                        video.play();
+                        document.getElementById('player-overlay').classList.add('hidden');
+                        showToast(`▶ Reproduciendo: ${player.video.title || 'Canal'}`, 3000);
+                    });
+                    
+                    currentHls.on(Hls.Events.ERROR, function(event, data) {
+                        console.error('Error HLS:', data);
+                        if (data.fatal) {
+                            switch(data.type) {
+                                case Hls.ErrorTypes.NETWORK_ERROR:
+                                    showToast('❌ Error de red. Reintentando...', 3000);
+                                    currentHls.startLoad();
+                                    break;
+                                case Hls.ErrorTypes.MEDIA_ERROR:
+                                    showToast('❌ Error de media. Recuperando...', 3000);
+                                    currentHls.recoverMediaError();
+                                    break;
+                                default:
+                                    showToast('❌ Error al reproducir el stream', 3000);
+                                    break;
+                            }
+                        }
+                    });
+                }
+            }
+        },
+        autoplay: true,
+        theme: '#00f2ff',
+        lang: 'es',
+        hotkey: true,
+        preload: 'auto',
+        volume: 0.8,
+        screenshot: true,
+        airplay: true
+    });
+
+    // Verificar estado del proxy
+    async function checkProxyStatus() {
+        try {
+            const response = await fetch(`${PROXY_URL}/health`);
+            const data = await response.json();
+            
+            const dot = document.getElementById('proxy-status-dot');
+            const text = document.getElementById('proxy-status-text');
+            
+            if (data.status === 'healthy') {
+                dot.className = 'status-dot status-online';
+                text.textContent = 'Proxy Online';
+            } else {
+                dot.className = 'status-dot status-loading';
+                text.textContent = 'Proxy Iniciando...';
+            }
+        } catch (error) {
+            document.getElementById('proxy-status-dot').className = 'status-dot status-offline';
+            document.getElementById('proxy-status-text').textContent = 'Proxy Offline';
+        }
+    }
+
+    async function loadM3U() {
+        const container = document.getElementById('channel-list');
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📡</div>
+                <p>Cargando canales...</p>
+            </div>
+        `;
+        
+        try {
+            const response = await fetch(M3U_URL);
+            const data = await response.text();
+            parseM3U(data);
+            showToast(`✅ ${channels.length} canales cargados`, 3000);
+        } catch (error) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">❌</div>
+                    <p>Error al cargar canales</p>
+                    <button onclick="loadM3U()" style="margin-top: 15px; padding: 10px 20px; background: #0066ff; border: none; border-radius: 20px; color: white; cursor: pointer;">Reintentar</button>
+                </div>
+            `;
+        }
+    }
+
+    function parseM3U(content) {
+        channels = [];
+        const lines = content.split('\n');
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            
+            if (line.startsWith('#EXTINF')) {
+                const nameMatch = line.match(/,(.*)$/);
+                const name = nameMatch ? nameMatch[1].trim() : 'Canal sin nombre';
+                const logo = line.match(/tvg-logo="(.*?)"/)?.[1] || '';
+                const group = line.match(/group-title="(.*?)"/)?.[1] || 'General';
+                const streamUrl = lines[i+1]?.trim();
+                
+                if (streamUrl && streamUrl.includes('acestream://')) {
+                    const aceId = streamUrl.split('acestream://')[1].trim();
+                    if (/^[a-f0-9]{40}$/i.test(aceId)) {
+                        channels.push({ 
+                            name, 
+                            logo, 
+                            aceId, 
+                            group,
+                            id: aceId.substring(0, 8)
+                        });
+                    }
+                }
+            }
+        }
+        
+        channels.sort((a, b) => {
+            if (a.group === b.group) return a.name.localeCompare(b.name);
+            return a.group.localeCompare(b.group);
+        });
+        
+        document.getElementById('channel-count').textContent = channels.length;
+        displayChannels(channels);
+    }
+
+    function displayChannels(list) {
+        const container = document.getElementById('channel-list');
+        
+        if (list.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔍</div>
+                    <p>No se encontraron canales</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = list.map(c => `
+            <div class="channel-card ${currentChannelId === c.aceId ? 'active' : ''}" 
+                 onclick="playChannel('${c.aceId}', '${escapeHtml(c.name)}', this)"
+                 data-id="${c.aceId}">
+                <img src="${c.logo}" 
+                     class="channel-logo" 
+                     onerror="this.src='https://via.placeholder.com/80?text=${encodeURIComponent(c.name.substring(0,2))}'"
+                     alt="${escapeHtml(c.name)}">
+                <div class="channel-group">${escapeHtml(c.group)}</div>
+                <div class="channel-name">${escapeHtml(c.name)}</div>
+                <div class="channel-status">
+                    <div class="status-dot-small ${currentChannelId === c.aceId ? 'status-online' : 'status-offline'}" 
+                         id="dot-${c.id}"></div>
+                    <span id="text-${c.id}">${currentChannelId === c.aceId ? 'En vivo' : 'Click para ver'}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function playChannel(id, name, element) {
+        document.querySelectorAll('.channel-card').forEach(el => el.classList.remove('active'));
+        if (element) element.classList.add('active');
+        
+        currentChannelId = id;
+        const shortId = id.substring(0, 8);
+        
+        const overlay = document.getElementById('player-overlay');
+        overlay.innerHTML = `
+            <div class="loading-spinner"></div>
+            <p>Iniciando stream en la nube...</p>
+            <p style="font-size: 12px; color: #888; margin-top: 10px;">ID: ${shortId}</p>
+            <p style="font-size: 11px; color: #666; margin-top: 5px;">Esto puede tardar 10-30 segundos</p>
+        `;
+        overlay.classList.remove('hidden');
+        
+        showToast('⏳ Iniciando stream AceStream...', 3000);
+        
+        try {
+            const response = await fetch(`${PROXY_URL}/ace/getstream?id=${id}&format=hls`);
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Error HTTP ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (!data.stream_url && !data.playback_url) {
+                throw new Error('El proxy no devolvió URL de stream');
+            }
+            
+            const streamUrl = data.playback_url || data.stream_url;
+            
+            dp.video.title = name;
+            dp.switchVideo({
+                url: streamUrl,
+                type: 'customHls',
+                name: name
+            });
+            
+            updateChannelStatus(shortId, true);
+            
+        } catch (error) {
+            console.error('Error:', error);
+            overlay.innerHTML = `
+                <p style="color: #ff4444; margin-bottom: 15px;">❌ Error al cargar</p>
+                <p style="font-size: 14px; color: #888;">${error.message}</p>
+                <button onclick="playChannel('${id}', '${name}', document.querySelector('[data-id=\\'${id}\\']'))" 
+                        style="margin-top: 20px; padding: 10px 20px; background: #0066ff; border: none; border-radius: 20px; color: white; cursor: pointer;">
+                    Reintentar
+                </button>
+            `;
+            showToast(`❌ Error: ${error.message}`, 5000);
+            updateChannelStatus(shortId, false);
+        }
+    }
+
+    function updateChannelStatus(shortId, isPlaying) {
+        const dot = document.getElementById(`dot-${shortId}`);
+        const text = document.getElementById(`text-${shortId}`);
+        if (dot && text) {
+            dot.className = `status-dot-small ${isPlaying ? 'status-online' : 'status-offline'}`;
+            text.textContent = isPlaying ? 'En vivo' : 'Click para ver';
+        }
+    }
+
+    function filterChannels() {
+        const query = document.getElementById('search-bar').value.toLowerCase().trim();
+        if (!query) {
+            displayChannels(channels);
+            return;
+        }
+        
+        const filtered = channels.filter(c => 
+            c.name.toLowerCase().includes(query) || 
+            c.group.toLowerCase().includes(query) ||
+            c.aceId.toLowerCase().includes(query)
+        );
+        displayChannels(filtered);
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function showToast(message, duration = 3000) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, duration);
+    }
+
+    // Inicialización
+    document.addEventListener('DOMContentLoaded', () => {
+        checkProxyStatus();
+        loadM3U();
+        setInterval(checkProxyStatus, 30000);
+    });
+</script>
+
+</body>
+</html>
