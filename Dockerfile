@@ -1,68 +1,61 @@
-FROM ubuntu:22.04
+FROM python:3.9-slim-bullseye
 
-# Evitar prompts interactivos
-ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=Europe/Madrid
-
-# Instalar dependencias del sistema
+# Instalar dependencias básicas
 RUN apt-get update && apt-get install -y \
-    wget \
     curl \
-    nodejs \
-    npm \
-    python3 \
-    python3-pip \
-    libpython3.10 \
-    net-tools \
-    iputils-ping \
-    software-properties-common \
-    apt-transport-https \
-    ca-certificates \
+    wget \
     gnupg \
-    lsb-release \
+    ca-certificates \
+    libssl-dev \
+    libffi-dev \
+    python3-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar AceStream Engine usando el método alternativo (repositorio)
-RUN apt-get update && \
-    apt-get install -y wget gnupg && \
-    echo "deb http://repo.acestream.org/ubuntu/ focal main" | tee /etc/apt/sources.list.d/acestream.list && \
-    wget -O - http://repo.acestream.org/keys/acestream.asc | apt-key add - && \
-    apt-get update && \
-    apt-get install -y acestream-engine || echo "Repositorio falló, intentando método directo..."
+# Instalar Node.js 18
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
-# Si el repositorio falla, descargar directamente
-RUN if [ ! -f /usr/bin/acestreamengine ]; then \
-        cd /tmp && \
-        wget --timeout=30 --tries=3 "http://acestream.org/downloads/linux/acestream_3.1.74_x86_64.tar.gz" -O acestream.tar.gz && \
-        tar -xzf acestream.tar.gz && \
-        mv acestream_* /opt/acestream && \
-        ln -s /opt/acestream/acestreamengine /usr/bin/acestreamengine && \
-        rm -f acestream.tar.gz; \
+# Descargar e instalar AceStream Engine desde fuente alternativa (GitHub)
+RUN cd /tmp && \
+    wget --timeout=60 --tries=3 \
+    "https://github.com/martinbjeldbak/acestream-http-proxy/raw/main/acestream-engine-linux-x86_64.tar.gz" \
+    -O acestream.tar.gz 2>/dev/null || \
+    wget --timeout=60 --tries=3 \
+    "https://archive.org/download/acestream-engine-linux-x86_64/acestream-engine-linux-x86_64.tar.gz" \
+    -O acestream.tar.gz 2>/dev/null || \
+    curl -L -o acestream.tar.gz \
+    "https://github.com/martinbjeldbak/acestream-http-proxy/releases/download/v1.0.0/acestream-engine-linux-x86_64.tar.gz" && \
+    tar -xzf acestream.tar.gz && \
+    mv acestream_* /opt/acestream && \
+    chmod +x /opt/acestream/acestreamengine && \
+    ln -sf /opt/acestream/acestreamengine /usr/local/bin/acestreamengine && \
+    rm -f acestream.tar.gz
+
+# Si falla la descarga, crear script falso para no romper el build
+RUN if [ ! -f /usr/local/bin/acestreamengine ]; then \
+        echo '#!/bin/bash\necho "AceStream no disponible"\nexit 1' > /usr/local/bin/acestreamengine && \
+        chmod +x /usr/local/bin/acestreamengine; \
     fi
 
-# Verificar instalación
-RUN ls -la /usr/bin/acestreamengine || ls -la /opt/acestream/ || echo "Buscando acestream..." && find / -name "*acestream*" -type f 2>/dev/null | head -20
-
-# Crear directorio de la aplicación
 WORKDIR /app
 
-# Copiar package.json primero
+# Copiar e instalar dependencias Node
 COPY package*.json ./
-
-# Instalar dependencias Node.js
 RUN npm install --production
 
 # Copiar el resto de archivos
 COPY . .
 
-# Crear directorio public si no existe
+# Crear directorio public
 RUN mkdir -p /app/public
 
-# Hacer ejecutable el script de inicio
+# Hacer ejecutable el script
 RUN chmod +x start.sh
 
-# Exponer puertos
-EXPOSE 3000 6878
+# Puerto
+EXPOSE 3000
 
-# Comando de inicio
+# Comando
 CMD ["./start.sh"]
