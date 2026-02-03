@@ -1,78 +1,81 @@
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 const path = require('path');
 
 const app = express();
 app.use(cors());
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Sirve archivos estáticos desde la raíz
-app.use(express.static(__dirname));
-
-// Ruta raíz
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
+const ACESTREAM_HOST = '127.0.0.1';
+const ACESTREAM_PORT = 6878;
 
 // Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', mode: 'webtorrent' });
-});
-
-// Proxy para lista M3U con mejor manejo de errores
-app.get('/api/m3u', async (req, res) => {
+app.get('/health', async (req, res) => {
     try {
-        const fetch = (await import('node-fetch')).default;
-        
-        // URL de la lista M3U
-        const M3U_URL = 'https://ipfs.io/ipns/k51qzi5uqu5dh5qej4b9wlcr5i6vhc7rcfkekhrxqek5c9lk6gdaiik820fecs/hashes_acestream.m3u';
-        
-        const response = await fetch(M3U_URL, {
-            timeout: 30000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const text = await response.text();
-        
-        // Verificar que no esté vacío
-        if (!text || text.trim().length === 0) {
-            throw new Error('Lista M3U vacía');
-        }
-        
-        res.type('text/plain').send(text);
-        
-    } catch (error) {
-        console.error('Error cargando M3U:', error);
-        res.status(500).json({ 
-            error: 'No se pudo cargar la lista',
-            details: error.message 
-        });
+        await axios.get(`http://${ACESTREAM_HOST}:${ACESTREAM_PORT}/webui/api/service?method=get_version`, { timeout: 5000 });
+        res.json({ status: 'healthy', acestream: 'running' });
+    } catch (e) {
+        res.json({ status: 'degraded', acestream: 'stopped' });
     }
 });
 
-// Proxy genérico para cualquier M3U (opcional)
-app.get('/api/proxy', async (req, res) => {
-    const url = req.query.url;
-    if (!url) {
-        return res.status(400).json({ error: 'URL requerida' });
-    }
+// Endpoint principal - obtiene stream de AceStream
+app.get('/ace/getstream', async (req, res) => {
+    const { id, format = 'hls' } = req.query;
+    
+    if (!id) return res.status(400).json({ error: 'ID requerido' });
     
     try {
-        const fetch = (await import('node-fetch')).default;
-        const response = await fetch(url, { timeout: 30000 });
-        const text = await response.text();
-        res.type('text/plain').send(text);
+        // Llamar a AceStream local
+        const response = await axios.get(
+            `http://${ACESTREAM_HOST}:${ACESTREAM_PORT}/ace/getstream?id=${id}&format=${format}`,
+            { timeout: 60000 }
+        );
+        
+        if (response.data && response.data.response) {
+            res.json({
+                success: true,
+                stream_url: response.data.response,
+                id: id,
+                format: format
+            });
+        } else {
+            throw new Error('Respuesta inválida de AceStream');
+        }
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error AceStream:', error.message);
+        res.status(500).json({ 
+            error: 'Error al iniciar stream',
+            details: error.message
+        });
     }
 });
 
-const PORT = process.env.PORT || 3000;
+// Proxy HLS
+app.get('/ace/manifest.m3u8', async (req, res) => {
+    try {
+        const response = await axios.get(
+            `http://${ACESTREAM_HOST}:${ACESTREAM_PORT}/ace/manifest.m3u8?id=${req.query.id}&format=hls`,
+            { responseType: 'stream', timeout: 10000 }
+        );
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+        response.data.pipe(res);
+    } catch (error) {
+        res.status(500).send('#EXTM3U\n#EXT-X-ERROR');
+    }
+});
+
+// Info
+app.get('/api/info', (req, res) => {
+    res.json({ name: 'AceStream Cloud', version: '1.0.0' });
+});
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server on port ${PORT}`);
 });
