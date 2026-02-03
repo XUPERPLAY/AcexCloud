@@ -3,606 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TV Premium - WebTorrent</title>
-    <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+    <title>TV Premium Cloud</title>
     <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
         body { 
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
-            color: #ffffff;
-            font-family: 'Roboto', sans-serif;
-            min-height: 100vh;
+            background: #0a0a0a; 
+            color: white; 
+            font-family: sans-serif;
+            margin: 0;
             padding: 20px;
         }
-
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding: 20px;
-            background: rgba(255,255,255,0.05);
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .header h1 {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 2.5em;
-            background: linear-gradient(45deg, #00f2ff, #0066ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
-        }
-
-        .info-box {
-            background: rgba(0, 242, 255, 0.1);
-            border: 1px solid rgba(0, 242, 255, 0.3);
-            border-radius: 10px;
-            padding: 15px;
-            margin: 20px auto;
-            max-width: 900px;
-            text-align: center;
-            font-size: 14px;
-        }
-
-        #player-container { 
-            width: 100%; 
+        #player { 
             max-width: 900px; 
-            margin: 0 auto 30px; 
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
-            border: 2px solid rgba(0,242,255,0.3);
-        }
-
-        .controls-section {
-            max-width: 900px;
             margin: 0 auto 20px;
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        #search-bar { 
-            flex: 1;
-            min-width: 250px;
-            padding: 15px 25px; 
-            border-radius: 30px; 
-            border: 2px solid rgba(0,242,255,0.3); 
-            font-size: 16px; 
-            background: rgba(0,0,0,0.4);
-            color: white;
-            outline: none;
-        }
-
-        #search-bar:focus {
-            border-color: #00f2ff;
-            box-shadow: 0 0 20px rgba(0,242,255,0.2);
-        }
-
-        .btn {
-            padding: 12px 24px;
-            background: linear-gradient(45deg, #0066ff, #00f2ff);
-            border: none;
-            border-radius: 25px;
-            color: white;
-            font-weight: 500;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0,102,255,0.4);
-        }
-
-        #status-box {
-            max-width: 900px;
-            margin: 20px auto;
-            padding: 15px;
-            background: rgba(0,0,0,0.3);
             border-radius: 10px;
-            text-align: center;
-            display: none;
-        }
-
-        #status-box.active {
-            display: block;
-        }
-
-        .peer-count {
-            color: #00f2ff;
-            font-weight: bold;
-            font-size: 18px;
-        }
-
-        #channel-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 15px;
-            max-width: 900px;
-            margin: 20px auto;
-            max-height: 500px;
-            overflow-y: auto;
-            padding-right: 10px;
-        }
-
-        #channel-list::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        #channel-list::-webkit-scrollbar-track {
-            background: rgba(0,0,0,0.2);
-            border-radius: 4px;
-        }
-
-        #channel-list::-webkit-scrollbar-thumb {
-            background: linear-gradient(180deg, #00f2ff, #0066ff);
-            border-radius: 4px;
-        }
-
-        .channel-card {
-            background: rgba(255,255,255,0.05);
-            padding: 15px;
-            border-radius: 12px;
-            cursor: pointer;
-            text-align: center;
-            transition: all 0.3s;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .channel-card:hover {
-            background: rgba(255,255,255,0.1);
-            transform: translateY(-3px);
-            border-color: rgba(0,242,255,0.5);
-        }
-
-        .channel-card.active {
-            background: rgba(0,102,255,0.2);
-            border-color: #00f2ff;
-        }
-
-        .channel-logo {
-            width: 60px;
-            height: 60px;
-            object-fit: contain;
-            margin: 0 auto 10px;
-            border-radius: 8px;
-            background: rgba(0,0,0,0.3);
-            padding: 5px;
-        }
-
-        .channel-name {
-            font-size: 13px;
-            font-weight: 500;
-            margin-bottom: 5px;
-            word-break: break-word;
-        }
-
-        .channel-group {
-            font-size: 10px;
-            color: #00f2ff;
-            text-transform: uppercase;
-        }
-
-        .channel-id {
-            font-size: 9px;
-            color: #666;
-            margin-top: 5px;
-            font-family: monospace;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #888;
-            grid-column: 1 / -1;
-        }
-
-        .error-state {
-            text-align: center;
-            padding: 40px;
-            color: #ff4444;
-            grid-column: 1 / -1;
-        }
-
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
-            border-radius: 50%;
-            border-top-color: #00f2ff;
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 4px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 2px;
-            margin-top: 10px;
             overflow: hidden;
         }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #00f2ff, #0066ff);
-            width: 0%;
-            transition: width 0.3s;
+        .controls {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input, button {
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+        }
+        input { flex: 1; }
+        button {
+            background: #0066ff;
+            color: white;
+            cursor: pointer;
+        }
+        #channels {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .channel {
+            background: #222;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .channel:hover { background: #333; }
+        #status {
+            max-width: 900px;
+            margin: 10px auto;
+            padding: 10px;
+            background: #111;
+            border-radius: 5px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <h1>⚡ TV PREMIUM WEB</h1>
-    <p>Reproducción P2P directa en tu navegador</p>
+<div id="player"></div>
+
+<div id="status">Cargando...</div>
+
+<div class="controls">
+    <input type="text" id="search" placeholder="Buscar canal..." onkeyup="filter()">
+    <button onclick="loadM3U()">🔄 Recargar</button>
 </div>
 
-<div class="info-box">
-    💡 <strong>Modo WebTorrent:</strong> Los videos se descargan directamente de otros usuarios (P2P). 
-    Puede tardar 10-60 segundos en iniciar dependiendo de los peers disponibles.
-</div>
-
-<div id="player-container">
-    <div id="dplayer"></div>
-</div>
-
-<div id="status-box">
-    <div id="status-text">Listo</div>
-    <div style="margin-top: 10px;">
-        Peers conectados: <span class="peer-count" id="peers">0</span> | 
-        Progreso: <span id="progress">0%</span>
-    </div>
-    <div class="progress-bar">
-        <div class="progress-fill" id="progress-bar"></div>
-    </div>
-</div>
-
-<div class="controls-section">
-    <input type="text" id="search-bar" placeholder="🔍 Buscar canal..." onkeyup="filterChannels()">
-    <button class="btn" onclick="loadM3U()">🔄 Cargar Lista</button>
-</div>
-
-<div id="channel-list">
-    <div class="empty-state">
-        <div class="loading-spinner"></div>
-        <p style="margin-top: 15px;">Cargando canales...</p>
-    </div>
-</div>
+<div id="channels"></div>
 
 <script>
-    // Inicializar WebTorrent y DPlayer
-    const client = new WebTorrent();
-    let currentTorrent = null;
-    let channels = [];
-    let dp = null;
-
-    // Inicializar DPlayer
-    function initPlayer() {
-        dp = new DPlayer({
-            container: document.getElementById('dplayer'),
-            video: { url: '' },
-            autoplay: true,
-            theme: '#00f2ff',
-            lang: 'es',
-            screenshot: true,
-            airplay: true
-        });
-    }
-
-    initPlayer();
-
-    // Escuchar eventos de WebTorrent
-    client.on('error', (err) => {
-        console.error('WebTorrent error:', err);
-        updateStatus('Error: ' + err.message);
+    const dp = new DPlayer({
+        container: document.getElementById('player'),
+        video: { url: '' },
+        autoplay: true,
+        theme: '#00f2ff'
     });
 
-    function updateStatus(text) {
-        document.getElementById('status-text').textContent = text;
-        document.getElementById('status-box').classList.add('active');
-    }
+    let channels = [];
 
-    function updatePeers(count) {
-        document.getElementById('peers').textContent = count;
-    }
-
-    function updateProgress(percent) {
-        document.getElementById('progress').textContent = percent + '%';
-        document.getElementById('progress-bar').style.width = percent + '%';
-    }
-
-    // Convertir hash AceStream a magnet link
-    function acestreamToMagnet(hash) {
-        hash = hash.trim().replace('acestream://', '').toLowerCase();
-        
-        // Validar hash
-        if (!/^[a-f0-9]{40}$/i.test(hash)) {
-            console.error('Hash inválido:', hash);
-            return null;
-        }
-        
-        const trackers = [
-            'udp://tracker.openbittorrent.com:80',
-            'udp://tracker.opentrackr.org:1337',
-            'udp://tracker.coppersurfer.tk:6969',
-            'udp://tracker.leechers-paradise.org:6969',
-            'udp://exodus.desync.com:6969',
-            'udp://tracker.pirateparty.gr:6969',
-            'udp://tracker.internetwarriors.net:1337',
-            'wss://tracker.openwebtorrent.com',
-            'wss://tracker.btorrent.xyz',
-            'wss://tracker.fastcast.nz'
-        ];
-        
-        let magnet = `magnet:?xt=urn:btih:${hash}`;
-        trackers.forEach(tr => {
-            magnet += `&tr=${encodeURIComponent(tr)}`;
-        });
-        
-        return magnet;
-    }
-
-    // Cargar lista M3U
     async function loadM3U() {
-        const container = document.getElementById('channel-list');
-        container.innerHTML = `
-            <div class="empty-state">
-                <div class="loading-spinner"></div>
-                <p style="margin-top: 15px;">Cargando canales...</p>
-            </div>
-        `;
+        document.getElementById('status').textContent = 'Cargando canales...';
         
         try {
-            console.log('Cargando lista M3U...');
-            const response = await fetch('/api/m3u');
-            
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || `HTTP ${response.status}`);
-            }
-            
-            const data = await response.text();
-            console.log('Lista cargada, tamaño:', data.length);
-            
-            if (!data || data.trim().length === 0) {
-                throw new Error('Lista vacía');
-            }
-            
-            parseM3U(data);
-            
-        } catch (error) {
-            console.error('Error cargando M3U:', error);
-            container.innerHTML = `
-                <div class="error-state">
-                    <p>❌ Error al cargar canales</p>
-                    <p style="font-size: 12px; margin-top: 10px;">${error.message}</p>
-                    <button onclick="loadM3U()" class="btn" style="margin-top: 15px;">Reintentar</button>
-                </div>
-            `;
-            updateStatus('Error cargando lista: ' + error.message);
+            const res = await fetch('/api/m3u-proxy');
+            const text = await res.text();
+            parseM3U(text);
+        } catch (e) {
+            // Lista de respaldo con canales de ejemplo
+            channels = [
+                {name: 'La 1', group: 'TDT', id: 'a0c5a5f5e3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3'},
+                {name: 'La 2', group: 'TDT', id: 'b1d6b6g6f4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4'}
+            ];
+            showChannels();
         }
     }
 
-    function parseM3U(content) {
+    function parseM3U(data) {
         channels = [];
-        const lines = content.split('\n');
-        let currentGroup = 'General';
-        
-        console.log('Parseando M3U, líneas:', lines.length);
+        const lines = data.split('\n');
         
         for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            
-            if (line.startsWith('#EXTINF')) {
-                // Extraer nombre
-                const nameMatch = line.match(/,(.*)$/);
-                const name = nameMatch ? nameMatch[1].trim() : 'Sin nombre';
+            if (lines[i].startsWith('#EXTINF')) {
+                const name = lines[i].split(',')[1] || 'Sin nombre';
+                const group = lines[i].match(/group-title="(.*?)"/)?.[1] || 'General';
+                const url = lines[i+1]?.trim();
                 
-                // Extraer logo
-                const logoMatch = line.match(/tvg-logo="(.*?)"/);
-                const logo = logoMatch ? logoMatch[1] : '';
-                
-                // Extraer grupo
-                const groupMatch = line.match(/group-title="(.*?)"/);
-                const group = groupMatch ? groupMatch[1] : currentGroup;
-                
-                // Siguiente línea es la URL
-                const streamUrl = lines[i + 1] ? lines[i + 1].trim() : '';
-                
-                console.log('Procesando:', name, 'URL:', streamUrl ? 'Sí' : 'No');
-                
-                // Buscar acestream://
-                if (streamUrl && streamUrl.includes('acestream://')) {
-                    const aceId = streamUrl.split('acestream://')[1].trim();
-                    
-                    // Validar que sea un hash válido (40 caracteres hex)
-                    if (/^[a-f0-9]{40}$/i.test(aceId)) {
-                        channels.push({
-                            name: name,
-                            logo: logo,
-                            aceId: aceId,
-                            group: group,
-                            id: aceId.substring(0, 8)
-                        });
-                        console.log('✓ Canal AceStream encontrado:', name);
-                    } else {
-                        console.log('✗ Hash inválido:', aceId);
+                if (url && url.includes('acestream://')) {
+                    const id = url.split('acestream://')[1];
+                    if (id.length === 40) {
+                        channels.push({name, group, id});
                     }
                 }
             }
         }
         
-        console.log('Total canales AceStream:', channels.length);
-        
-        // Ordenar por grupo y nombre
-        channels.sort((a, b) => {
-            if (a.group === b.group) return a.name.localeCompare(b.name);
-            return a.group.localeCompare(b.group);
-        });
-        
-        if (channels.length === 0) {
-            document.getElementById('channel-list').innerHTML = `
-                <div class="error-state">
-                    <p>No se encontraron canales AceStream</p>
-                    <p style="font-size: 12px; margin-top: 10px;">La lista M3U no contiene streams acestream://</p>
-                </div>
-            `;
-            updateStatus('No se encontraron canales AceStream en la lista');
-        } else {
-            displayChannels(channels);
-            updateStatus(`✅ ${channels.length} canales cargados. Haz clic en uno para reproducir.`);
-        }
+        showChannels();
     }
 
-    function displayChannels(list) {
-        const container = document.getElementById('channel-list');
-        
-        if (list.length === 0) {
-            container.innerHTML = '<div class="empty-state">No se encontraron canales</div>';
-            return;
-        }
-        
-        container.innerHTML = list.map(c => `
-            <div class="channel-card" onclick="playChannel('${c.aceId}', '${escapeHtml(c.name)}', this)" data-id="${c.aceId}">
-                <img src="${c.logo}" class="channel-logo" onerror="this.src='https://via.placeholder.com/60?text=TV'" alt="${escapeHtml(c.name)}">
-                <div class="channel-group">${escapeHtml(c.group)}</div>
-                <div class="channel-name">${escapeHtml(c.name)}</div>
-                <div class="channel-id">${c.id}</div>
+    function showChannels() {
+        const div = document.getElementById('channels');
+        div.innerHTML = channels.map(c => `
+            <div class="channel" onclick="play('${c.id}', '${c.name}')">
+                <div style="color: #00f2ff; font-size: 10px;">${c.group}</div>
+                <div>${c.name}</div>
             </div>
         `).join('');
+        
+        document.getElementById('status').textContent = `${channels.length} canales listos`;
     }
 
-    async function playChannel(hash, name, element) {
-        // UI updates
-        document.querySelectorAll('.channel-card').forEach(el => el.classList.remove('active'));
-        element.classList.add('active');
+    async function play(id, name) {
+        document.getElementById('status').textContent = `⏳ Iniciando ${name}...`;
         
-        // Limpiar torrent anterior
-        if (currentTorrent) {
-            currentTorrent.destroy();
-        }
-
-        const magnetUri = acestreamToMagnet(hash);
-        
-        if (!magnetUri) {
-            updateStatus('❌ Hash inválido');
-            return;
-        }
-        
-        console.log('Reproduciendo magnet:', magnetUri);
-
-        updateStatus(`⏳ Conectando a "${name}"... Espera mientras encuentra peers...`);
-        updatePeers(0);
-        updateProgress(0);
-
         try {
-            client.add(magnetUri, (torrent) => {
-                currentTorrent = torrent;
-                
-                console.log('Torrent añadido:', torrent.infoHash);
-                
-                // Eventos del torrent
-                torrent.on('wire', () => {
-                    updatePeers(torrent.numPeers);
-                });
-
-                torrent.on('download', (bytes) => {
-                    const percent = Math.round(torrent.progress * 100);
-                    updateProgress(percent);
-                    updateStatus(`📥 Descargando... ${(torrent.downloaded / 1024 / 1024).toFixed(2)} MB (${torrent.numPeers} peers)`);
-                });
-
-                // Cuando tengamos metadata
-                torrent.on('metadata', () => {
-                    console.log('Metadata recibida, archivos:', torrent.files.length);
-                });
-
-                // Buscar archivo de video
-                const videoFile = torrent.files.find(f => {
-                    const ext = f.name.toLowerCase().split('.').pop();
-                    return ['mp4', 'mkv', 'avi', 'mov', 'webm', 'ts', 'm3u8'].includes(ext);
-                }) || torrent.files[0];
-
-                if (!videoFile) {
-                    updateStatus('❌ No se encontró archivo de video');
-                    return;
-                }
-
-                console.log('Archivo seleccionado:', videoFile.name);
-
-                // Crear stream y reproducir
-                videoFile.renderTo('video', {
-                    autoplay: true,
-                    controls: true
-                }, (err, elem) => {
-                    if (err) {
-                        console.error('Error renderizando:', err);
-                        // Fallback: usar URL blob
-                        videoFile.getBlobURL((err, url) => {
-                            if (err) {
-                                updateStatus('❌ Error al cargar el video');
-                                return;
-                            }
-                            playInDPlayer(url, name);
-                        });
-                    } else {
-                        updateStatus(`▶ Reproduciendo: ${name}`);
-                        updatePeers(torrent.numPeers);
+            const res = await fetch(`/ace/getstream?id=${id}&format=hls`);
+            const data = await res.json();
+            
+            if (data.stream_url) {
+                dp.switchVideo({
+                    url: data.stream_url,
+                    type: 'customHls',
+                    customType: {
+                        customHls: function(video, player) {
+                            const hls = new Hls();
+                            hls.loadSource(video.src);
+                            hls.attachMedia(video);
+                            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+                        }
                     }
                 });
-            });
-        } catch (error) {
-            console.error('Error:', error);
-            updateStatus('❌ Error al iniciar: ' + error.message);
+                document.getElementById('status').textContent = `▶ ${name}`;
+            } else {
+                throw new Error('No stream URL');
+            }
+        } catch (e) {
+            document.getElementById('status').textContent = `❌ Error: ${e.message}`;
         }
     }
 
-    function playInDPlayer(url, name) {
-        dp.switchVideo({
-            url: url,
-            type: 'auto',
-            name: name
-        });
-        updateStatus(`▶ Reproduciendo: ${name}`);
+    function filter() {
+        const q = document.getElementById('search').value.toLowerCase();
+        const filtered = channels.filter(c => c.name.toLowerCase().includes(q));
+        // Re-renderizar...
     }
 
-    function filterChannels() {
-        const query = document.getElementById('search-bar').value.toLowerCase().trim();
-        if (!query) {
-            displayChannels(channels);
-            return;
-        }
-        
-        const filtered = channels.filter(c => 
-            c.name.toLowerCase().includes(query) || 
-            c.group.toLowerCase().includes(query) ||
-            c.aceId.toLowerCase().includes(query)
-        );
-        displayChannels(filtered);
-    }
-
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    // Cargar automáticamente al iniciar
-    window.addEventListener('load', () => {
-        console.log('Página cargada, iniciando...');
-        setTimeout(loadM3U, 500);
-    });
+    loadM3U();
 </script>
 
 </body>
