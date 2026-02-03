@@ -4,18 +4,21 @@ const path = require('path');
 
 const app = express();
 app.use(cors());
-app.use(express.static(path.join(__dirname, 'public')));
+
+// IMPORTANTE: Servir archivos estáticos DESDE la carpeta public
+app.use(express.static('public'));
+
+// Ruta raíz explícita
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Health check
 app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'ok', 
-        mode: 'webtorrent',
-        message: 'Servidor listo - WebTorrent corre en el cliente'
-    });
+    res.json({ status: 'ok', mode: 'webtorrent' });
 });
 
-// Proxy para lista M3U (evita CORS)
+// Proxy para lista M3U
 app.get('/api/m3u', async (req, res) => {
     try {
         const fetch = (await import('node-fetch')).default;
@@ -23,11 +26,11 @@ app.get('/api/m3u', async (req, res) => {
         const text = await response.text();
         res.type('text/plain').send(text);
     } catch (e) {
-        res.status(500).json({ error: 'No se pudo cargar la lista' });
+        res.status(500).json({ error: 'No se pudo cargar' });
     }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Servidor WebTorrent listo en puerto ${PORT}`);
+    console.log(`🚀 Server on port ${PORT}`);
 });
