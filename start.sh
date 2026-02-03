@@ -2,17 +2,35 @@
 
 echo "🚀 Iniciando AceStream Cloud Proxy..."
 
-# Verificar que AceStream está instalado
-if [ ! -f /usr/bin/acestreamengine ]; then
+# Buscar el binario de AceStream en varias ubicaciones posibles
+ACESTREAM_BIN=""
+
+if [ -f /usr/bin/acestreamengine ]; then
+    ACESTREAM_BIN="/usr/bin/acestreamengine"
+elif [ -f /opt/acestream/acestreamengine ]; then
+    ACESTREAM_BIN="/opt/acestream/acestreamengine"
+    # Añadir al PATH si es necesario
+    export PATH=$PATH:/opt/acestream
+elif [ -f /usr/local/bin/acestreamengine ]; then
+    ACESTREAM_BIN="/usr/local/bin/acestreamengine"
+else
+    echo "❌ Buscando acestreamengine en el sistema..."
+    find /usr -name "acestreamengine" -type f 2>/dev/null
+    find /opt -name "acestreamengine" -type f 2>/dev/null
     echo "❌ Error: AceStream engine no encontrado"
     exit 1
 fi
 
-echo "✅ AceStream engine encontrado"
+echo "✅ AceStream engine encontrado en: $ACESTREAM_BIN"
 
-# Iniciar AceStream Engine en segundo plano
+# Verificar que el binario funciona
+if ! $ACESTREAM_BIN --version 2>/dev/null && ! $ACESTREAM_BIN --help 2>/dev/null | head -5; then
+    echo "⚠️ No se pudo verificar el binario, pero continuando..."
+fi
+
+# Iniciar AceStream Engine
 echo "📺 Iniciando AceStream Engine..."
-/usr/bin/acestreamengine \
+$ACESTREAM_BIN \
     --client-console \
     --live-cache-type memory \
     --live-mem-cache-size 1000000000 \
@@ -25,18 +43,25 @@ ACE_PID=$!
 
 # Esperar a que AceStream esté listo
 echo "⏳ Esperando que AceStream Engine inicie..."
-for i in {1..30}; do
+MAX_WAIT=60
+for i in $(seq 1 $MAX_WAIT); do
     if curl -s http://127.0.0.1:6878/webui/api/service?method=get_version > /dev/null 2>&1; then
-        echo "✅ AceStream Engine listo!"
+        echo "✅ AceStream Engine listo en $i segundos!"
         break
     fi
-    echo "   Intentando... ($i/30)"
+    
+    if ! kill -0 $ACE_PID 2>/dev/null; then
+        echo "❌ AceStream Engine murió durante el inicio"
+        exit 1
+    fi
+    
+    echo "   Esperando... ($i/$MAX_WAIT)"
     sleep 2
 done
 
-# Verificar si AceStream está corriendo
+# Verificar si está corriendo
 if ! kill -0 $ACE_PID 2>/dev/null; then
-    echo "❌ Error: AceStream Engine no pudo iniciar"
+    echo "❌ Error: AceStream Engine no está corriendo"
     exit 1
 fi
 
